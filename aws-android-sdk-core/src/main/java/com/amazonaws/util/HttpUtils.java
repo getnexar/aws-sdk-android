@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -25,14 +25,21 @@ import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * HTTP utils class.
+ */
 public class HttpUtils {
 
     private static final String DEFAULT_ENCODING = "UTF-8";
+    private static final int PORT_HTTP = 80;
+    private static final int PORT_HTTPS = 443;
+    private static final int HTTP_STATUS_OK = 200;
 
     /**
      * Regex which matches any of the sequences that we need to fix up after
@@ -40,7 +47,7 @@ public class HttpUtils {
      */
     private static final Pattern ENCODED_CHARACTERS_PATTERN;
     static {
-        StringBuilder pattern = new StringBuilder();
+        final StringBuilder pattern = new StringBuilder();
 
         pattern
                 .append(Pattern.quote("+"))
@@ -52,6 +59,19 @@ public class HttpUtils {
                 .append(Pattern.quote("%2F"));
 
         ENCODED_CHARACTERS_PATTERN = Pattern.compile(pattern.toString());
+    }
+
+    private static final Pattern DECODED_CHARACTERS_PATTERN;
+    static {
+        final StringBuilder decodePattern = new StringBuilder();
+
+        decodePattern.append(Pattern.quote("%2A"))
+                .append("|")
+                .append(Pattern.quote("%2B"))
+                .append("|");
+
+        DECODED_CHARACTERS_PATTERN = Pattern.compile(decodePattern.toString());
+
     }
 
     /**
@@ -71,10 +91,10 @@ public class HttpUtils {
         }
 
         try {
-            String encoded = URLEncoder.encode(value, DEFAULT_ENCODING);
+            final String encoded = URLEncoder.encode(value, DEFAULT_ENCODING);
 
-            Matcher matcher = ENCODED_CHARACTERS_PATTERN.matcher(encoded);
-            StringBuffer buffer = new StringBuffer(encoded.length());
+            final Matcher matcher = ENCODED_CHARACTERS_PATTERN.matcher(encoded);
+            final StringBuffer buffer = new StringBuffer(encoded.length());
 
             while (matcher.find()) {
                 String replacement = matcher.group(0);
@@ -88,14 +108,33 @@ public class HttpUtils {
                 } else if (path && "%2F".equals(replacement)) {
                     replacement = "/";
                 }
-
                 matcher.appendReplacement(buffer, replacement);
             }
 
             matcher.appendTail(buffer);
             return buffer.toString();
 
-        } catch (UnsupportedEncodingException ex) {
+        } catch (final UnsupportedEncodingException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    /**
+     * Decode a string for use in the path of a URL; uses URLDecoder.decode,
+     * which decodes a string for use in the query portion of a URL.
+     *
+     * @param value The value to decode
+     * @return The decoded value if parameter is not null, otherwise, null is
+     *         returned.
+     */
+    public static String urlDecode(final String value) {
+        if (value == null) {
+            return null;
+        }
+
+        try {
+            return URLDecoder.decode(value, DEFAULT_ENCODING);
+        } catch (final UnsupportedEncodingException ex) {
             throw new RuntimeException(ex);
         }
     }
@@ -105,27 +144,34 @@ public class HttpUtils {
      * port other than 80 for HTTP URIs or any port other than 443 for HTTPS
      * URIs).
      *
-     * @param uri
+     * @param uri the URI.
      * @return True if the specified URI is using a non-standard port, otherwise
      *         false.
      */
     public static boolean isUsingNonDefaultPort(URI uri) {
-        String scheme = StringUtils.lowerCase(uri.getScheme());
-        int port = uri.getPort();
+        final String scheme = StringUtils.lowerCase(uri.getScheme());
+        final int port = uri.getPort();
 
-        if (port <= 0)
+        if (port <= 0) {
             return false;
-        if (scheme.equals("http") && port == 80)
+        }
+        if ("http".equals(scheme) && port == PORT_HTTP) {
             return false;
-        if (scheme.equals("https") && port == 443)
+        }
+        if ("https".equals(scheme) && port == PORT_HTTPS) {
             return false;
+        }
 
         return true;
     }
 
+    /**
+     * @param request the request.
+     * @return true if request is post and request has no payload.
+     */
     public static boolean usePayloadForQueryParameters(Request<?> request) {
-        boolean requestIsPOST = HttpMethodName.POST.equals(request.getHttpMethod());
-        boolean requestHasNoPayload = (request.getContent() == null);
+        final boolean requestIsPOST = HttpMethodName.POST.equals(request.getHttpMethod());
+        final boolean requestHasNoPayload = (request.getContent() == null);
 
         return requestIsPOST && requestHasNoPayload;
     }
@@ -142,13 +188,13 @@ public class HttpUtils {
         if (request.getParameters().isEmpty()) {
             return null;
         }
-        StringBuilder sb = new StringBuilder();
+        final StringBuilder sb = new StringBuilder();
         boolean first = true;
         try {
-            for (Entry<String, String> entry : request.getParameters().entrySet()) {
-                String encodedName = URLEncoder.encode(entry.getKey(), DEFAULT_ENCODING);
-                String value = entry.getValue();
-                String encodedValue = value == null ? "" : URLEncoder.encode(value,
+            for (final Entry<String, String> entry : request.getParameters().entrySet()) {
+                final String encodedName = URLEncoder.encode(entry.getKey(), DEFAULT_ENCODING);
+                final String value = entry.getValue();
+                final String encodedValue = value == null ? "" : URLEncoder.encode(value,
                         DEFAULT_ENCODING);
                 if (!first) {
                     sb.append("&");
@@ -157,7 +203,7 @@ public class HttpUtils {
                 }
                 sb.append(encodedName).append("=").append(encodedValue);
             }
-        } catch (UnsupportedEncodingException e) {
+        } catch (final UnsupportedEncodingException e) {
             throw new IllegalArgumentException(e);
         }
         return sb.toString();
@@ -166,6 +212,9 @@ public class HttpUtils {
     /**
      * Append the given path to the given baseUri. By default, all slash
      * characters in path will not be url-encoded.
+     * @param baseUri the base URI.
+     * @param path the path.
+     * @return the appended URI.
      */
     public static String appendUri(String baseUri, String path) {
         return appendUri(baseUri, path, false);
@@ -219,15 +268,15 @@ public class HttpUtils {
     public static InputStream fetchFile(
             final URI uri,
             final ClientConfiguration config) throws IOException {
-        URL url = uri.toURL();
+        final URL url = uri.toURL();
         // TODO: support proxy?
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setConnectTimeout(getConnectionTimeout(config));
         connection.setReadTimeout(getSocketTimeout(config));
         connection.addRequestProperty("User-Agent", getUserAgent(config));
 
-        if (connection.getResponseCode() != 200) {
-            InputStream is = connection.getErrorStream();
+        if (connection.getResponseCode() != HTTP_STATUS_OK) {
+            final InputStream is = connection.getErrorStream();
             if (is != null) {
                 is.close();
             }

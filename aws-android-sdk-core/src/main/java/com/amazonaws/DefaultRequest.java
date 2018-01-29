@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -29,12 +29,14 @@ import java.util.Map;
  * <p>
  * This class is only intended for internal use inside the AWS client libraries.
  * Callers shouldn't ever interact directly with objects of this class.
+ * @param <T> class type.
  */
 public class DefaultRequest<T> implements Request<T> {
 
     /** The resource path being requested */
     private String resourcePath;
 
+    private boolean streaming = false;
     /**
      * Map of the parameters being sent as part of this request.
      * <p>
@@ -42,10 +44,10 @@ public class DefaultRequest<T> implements Request<T> {
      * insertion order so that members of a list parameter will still be ordered
      * by their indices when they are marshalled into the query string.
      */
-    private Map<String, String> parameters = new LinkedHashMap<String, String>();
+    private final Map<String, String> parameters = new LinkedHashMap<String, String>();
 
     /** Map of the headers included in this request */
-    private Map<String, String> headers = new HashMap<String, String>();
+    private final Map<String, String> headers = new HashMap<String, String>();
 
     /** The service endpoint to which this request should be sent */
     private URI endpoint;
@@ -261,17 +263,19 @@ public class DefaultRequest<T> implements Request<T> {
      * @see Request#setTimeOffset(int)
      */
     @Override
+    @SuppressWarnings("checkstyle:hiddenfield")
     public Request<T> withTimeOffset(int timeOffset) {
         setTimeOffset(timeOffset);
         return this;
     }
 
     @Override
+    @SuppressWarnings("checkstyle:hiddenfield")
     public String toString() {
-        StringBuilder builder = new StringBuilder();
+        final StringBuilder builder = new StringBuilder();
         builder.append(getHttpMethod()).append(" ");
         builder.append(getEndpoint()).append(" ");
-        String resourcePath = getResourcePath();
+        final String resourcePath = getResourcePath();
 
         if (resourcePath == null) {
             builder.append("/");
@@ -285,8 +289,8 @@ public class DefaultRequest<T> implements Request<T> {
         builder.append(" ");
         if (!getParameters().isEmpty()) {
             builder.append("Parameters: (");
-            for (String key : getParameters().keySet()) {
-                String value = getParameters().get(key);
+            for (final String key : getParameters().keySet()) {
+                final String value = getParameters().get(key);
                 builder.append(key).append(": ").append(value).append(", ");
             }
             builder.append(") ");
@@ -294,8 +298,8 @@ public class DefaultRequest<T> implements Request<T> {
 
         if (!getHeaders().isEmpty()) {
             builder.append("Headers: (");
-            for (String key : getHeaders().keySet()) {
-                String value = getHeaders().get(key);
+            for (final String key : getHeaders().keySet()) {
+                final String value = getHeaders().get(key);
                 builder.append(key).append(": ").append(value).append(", ");
             }
             builder.append(") ");
@@ -312,6 +316,7 @@ public class DefaultRequest<T> implements Request<T> {
 
     @Override
     @Deprecated
+    @SuppressWarnings("checkstyle:hiddenfield")
     public void setAWSRequestMetrics(AWSRequestMetrics metrics) {
         if (this.metrics == null) {
             this.metrics = metrics;
@@ -319,5 +324,15 @@ public class DefaultRequest<T> implements Request<T> {
             throw new IllegalStateException(
                     "AWSRequestMetrics has already been set on this request");
         }
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return this.streaming;
+    }
+
+    @Override
+    public void setStreaming(boolean streaming) {
+        this.streaming = streaming;
     }
 }

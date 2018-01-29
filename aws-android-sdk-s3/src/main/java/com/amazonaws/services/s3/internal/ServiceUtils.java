@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Portions copyright 2006-2009 James Murty. Please see LICENSE.txt
  * for applicable license terms and NOTICE.txt for applicable notices.
@@ -28,10 +28,10 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.SSEAlgorithm;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.util.BinaryUtils;
 import com.amazonaws.util.DateUtils;
-import com.amazonaws.util.HttpUtils;
 import com.amazonaws.util.Md5Utils;
 
 import org.apache.commons.logging.Log;
@@ -58,25 +58,49 @@ import javax.net.ssl.SSLProtocolException;
 public class ServiceUtils {
     private static final Log log = LogFactory.getLog(ServiceUtils.class);
 
+    private static final int DEAFAULT_BYTE_SIZE = 1024 * 10;
+
+    /** boolean to enable append mode */
     public static final boolean APPEND_MODE = true;
 
+    /** boolean to disable overwrite mode */
     public static final boolean OVERWRITE_MODE = false;
 
     @Deprecated
-    protected static final DateUtils dateUtils = new DateUtils();
+    protected static final DateUtils DATE_UTILS = new DateUtils();
 
+    /**
+     * Parses a date in ISO-8601 format to a Date object.
+     * @param dateString the date in ISO-8601 format.
+     * @return instance of Date.
+     */
     public static Date parseIso8601Date(String dateString) {
         return DateUtils.parseISO8601Date(dateString);
     }
 
+    /**
+     * Formats an instance of Date to ISO-8601.
+     * @param date Date
+     * @return date in ISO-8601 format.
+     */
     public static String formatIso8601Date(Date date) {
         return DateUtils.formatISO8601Date(date);
     }
 
+    /**
+     * Parses a date in RFC-822 format to a Date object.
+     * @param dateString the date in RFC-822 format.
+     * @return instance of Date.
+     */
     public static Date parseRfc822Date(String dateString) {
         return DateUtils.parseRFC822Date(dateString);
     }
 
+    /**
+     * Formats an instance of Date to RFC-822.
+     * @param date Date
+     * @return date in RFC-822 format.
+     */
     public static String formatRfc822Date(Date date) {
         return DateUtils.formatRFC822Date(date);
     }
@@ -115,14 +139,17 @@ public class ServiceUtils {
      *         surrounding quotes.
      */
     public static String removeQuotes(String s) {
-        if (s == null)
+        if (s == null) {
             return null;
+        }
 
         s = s.trim();
-        if (s.startsWith("\""))
+        if (s.startsWith("\"")) {
             s = s.substring(1);
-        if (s.endsWith("\""))
+        }
+        if (s.endsWith("\"")) {
             s = s.substring(0, s.length() - 1);
+        }
 
         return s;
     }
@@ -157,7 +184,7 @@ public class ServiceUtils {
     public static URL convertRequestToUrl(Request<?> request,
             boolean removeLeadingSlashInResourcePath) {
 
-        String resourcePath = HttpUtils.urlEncode(request.getResourcePath(), true);
+        String resourcePath = S3HttpUtils.urlEncode(request.getResourcePath(), true);
 
         // Removed the padding "/" that was already added into the request's
         // resource path.
@@ -175,7 +202,7 @@ public class ServiceUtils {
         String urlString = request.getEndpoint() + urlPath;
 
         boolean firstParam = true;
-        for (String param : request.getParameters().keySet()) {
+        for (final String param : request.getParameters().keySet()) {
             if (firstParam) {
                 urlString += "?";
                 firstParam = false;
@@ -183,13 +210,13 @@ public class ServiceUtils {
                 urlString += "&";
             }
 
-            String value = request.getParameters().get(param);
-            urlString += param + "=" + HttpUtils.urlEncode(value, false);
+            final String value = request.getParameters().get(param);
+            urlString += param + "=" + S3HttpUtils.urlEncode(value, false);
         }
 
         try {
             return new URL(urlString);
-        } catch (MalformedURLException e) {
+        } catch (final MalformedURLException e) {
             throw new AmazonClientException(
                     "Unable to convert request to well formed URL: " + e.getMessage(), e);
         }
@@ -208,9 +235,10 @@ public class ServiceUtils {
         String result = "";
 
         boolean first = true;
-        for (String s : strings) {
-            if (!first)
+        for (final String s : strings) {
+            if (!first) {
                 result += ", ";
+            }
 
             result += s;
             first = false;
@@ -236,7 +264,7 @@ public class ServiceUtils {
             boolean appendData) {
 
         // attempt to create the parent if it doesn't exist
-        File parentDirectory = destinationFile.getParentFile();
+        final File parentDirectory = destinationFile.getParentFile();
         if (parentDirectory != null && !parentDirectory.exists()) {
             parentDirectory.mkdirs();
         }
@@ -245,23 +273,25 @@ public class ServiceUtils {
         try {
             outputStream = new BufferedOutputStream(new FileOutputStream(
                     destinationFile, appendData));
-            byte[] buffer = new byte[1024 * 10];
+            final byte[] buffer = new byte[DEAFAULT_BYTE_SIZE];
             int bytesRead;
             while ((bytesRead = s3Object.getObjectContent().read(buffer)) > -1) {
                 outputStream.write(buffer, 0, bytesRead);
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             s3Object.getObjectContent().abort();
             throw new AmazonClientException(
                     "Unable to store object contents to disk: " + e.getMessage(), e);
         } finally {
             try {
                 outputStream.close();
-            } catch (Exception e) {
+            } catch (final Exception e) {
+                log.debug("Caught exception. Ignoring.");
             }
             try {
                 s3Object.getObjectContent().close();
-            } catch (Exception e) {
+            } catch (final Exception e) {
+                log.debug("Caught exception. Ignoring.");
             }
         }
 
@@ -270,11 +300,11 @@ public class ServiceUtils {
         try {
             // Multipart Uploads don't have an MD5 calculated on the service
             // side
-            if (ServiceUtils.isMultipartUploadETag(s3Object.getObjectMetadata().getETag()) == false) {
+            if (!ServiceUtils.isMultipartUploadETag(s3Object.getObjectMetadata().getETag())) {
                 clientSideHash = Md5Utils.computeMD5Hash(new FileInputStream(destinationFile));
                 serverSideHash = BinaryUtils.fromHex(s3Object.getObjectMetadata().getETag());
             }
-        } catch (Exception e) {
+        } catch (final Exception e) {
             log.warn("Unable to calculate MD5 hash to validate download: " + e.getMessage(), e);
         }
 
@@ -320,9 +350,9 @@ public class ServiceUtils {
      * specified constraints).
      *
      * @param file The file to store the object's data in.
-     * @param safeS3DownloadTask The implementation of SafeS3DownloadTask
-     *            interface which allows user to get access to all the visible
-     *            variables at the calling site of this method.
+     * @param retryableS3DownloadTask the task for download.
+     * @param appendData boolean to indicate if append data is enabled.
+     * @return S3Object.
      */
     public static S3Object retryableDownloadS3ObjectToFile(File file,
             RetryableS3DownloadTask retryableS3DownloadTask, boolean appendData) {
@@ -332,16 +362,18 @@ public class ServiceUtils {
         do {
             needRetry = false;
             s3Object = retryableS3DownloadTask.getS3ObjectStream();
-            if (s3Object == null)
+            if (s3Object == null) {
                 return null;
+            }
 
             try {
                 ServiceUtils.downloadObjectToFile(s3Object, file,
                         retryableS3DownloadTask.needIntegrityCheck(),
                         appendData);
-            } catch (AmazonClientException ace) {
-                if (!ace.isRetryable())
+            } catch (final AmazonClientException ace) {
+                if (!ace.isRetryable()) {
                     throw ace;
+                }
                 // Determine whether an immediate retry is needed according to
                 // the captured AmazonClientException.
                 // (There are three cases when downloadObjectToFile() throws
@@ -357,9 +389,9 @@ public class ServiceUtils {
                     throw ace;
                 } else {
                     needRetry = true;
-                    if (hasRetried)
+                    if (hasRetried) {
                         throw ace;
-                    else {
+                    } else {
                         log.info("Retry the download of object " + s3Object.getKey() + " (bucket "
                                 + s3Object.getBucketName() + ")", ace);
                         hasRetried = true;
@@ -382,11 +414,15 @@ public class ServiceUtils {
      * from the server side is the MD5 of the ciphertext, which will by
      * definition mismatch the MD5 on the client side which is computed based on
      * the plaintext.
+     * @param metadata the ObjectMetadata of an S3 response.
+     * @return true if the specified response should skip MD5
+     *         check on the requested object content.
      */
     public static boolean skipMd5CheckPerResponse(ObjectMetadata metadata) {
-        if (metadata == null)
+        if (metadata == null) {
             return false;
-        boolean sseKMS = (ObjectMetadata.KMS_SERVER_SIDE_ENCRYPTION.equals(metadata
+        }
+        final boolean sseKMS = (SSEAlgorithm.KMS.toString().equals(metadata
                 .getSSEAlgorithm()));
         return (metadata.getSSECustomerAlgorithm() != null)
                 || sseKMS;
@@ -395,27 +431,33 @@ public class ServiceUtils {
     /**
      * Returns whether the specified request should skip MD5 check on the
      * requested object content.
+     * @param request the AmazonWebServiceRequest.
+     * @return true if the specified request should skip MD5
+     *         check on the requested object content.
      */
     public static boolean skipMd5CheckPerRequest(AmazonWebServiceRequest request) {
-        if (System.getProperty("com.amazonaws.services.s3.disableGetObjectMD5Validation") != null)
+        if (System.getProperty("com.amazonaws.services.s3.disableGetObjectMD5Validation") != null) {
             return true;
+        }
 
         if (request instanceof GetObjectRequest) {
-            GetObjectRequest getObjectRequest = (GetObjectRequest) request;
+            final GetObjectRequest getObjectRequest = (GetObjectRequest) request;
             // Skip MD5 check for range get
-            if (getObjectRequest.getRange() != null)
+            if (getObjectRequest.getRange() != null) {
                 return true;
-            if (getObjectRequest.getSSECustomerKey() != null)
+            }
+            if (getObjectRequest.getSSECustomerKey() != null) {
                 return true;
+            }
         } else if (request instanceof PutObjectRequest) {
-            PutObjectRequest putObjectRequest = (PutObjectRequest) request;
-            ObjectMetadata om = putObjectRequest.getMetadata();
+            final PutObjectRequest putObjectRequest = (PutObjectRequest) request;
+            final ObjectMetadata om = putObjectRequest.getMetadata();
             if (om != null && om.getSSEAlgorithm() != null) {
                 return true;
             }
             return putObjectRequest.getSSECustomerKey() != null;
         } else if (request instanceof UploadPartRequest) {
-            UploadPartRequest uploadPartRequest = (UploadPartRequest) request;
+            final UploadPartRequest uploadPartRequest = (UploadPartRequest) request;
             return uploadPartRequest.getSSECustomerKey() != null;
         }
 

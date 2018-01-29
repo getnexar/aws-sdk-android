@@ -18,7 +18,6 @@
 package com.amazonaws.mobileconnectors.cognitoidentityprovider.continuations;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.amazonaws.mobileconnectors.cognitoidentityprovider.CognitoUser;
 import com.amazonaws.mobileconnectors.cognitoidentityprovider.exceptions.CognitoParameterInvalidException;
@@ -56,25 +55,35 @@ public class NewPasswordContinuation extends ChallengeContinuation {
     /**
      * Callback handler.
      */
-    final private AuthenticationHandler callback;
+    private final AuthenticationHandler callback;
 
     /**
      * Constructs a new continuation for new user sign-in.
+     * @param user                  REQUIRED: Reference to the {@link CognitoUser} object.
+     * @param runInBackground       REQUIRED: Represents where this continuation has to run.
+     * @param callback              REQUIRED: Callback to interact with the app.
+     * @param context               REQUIRED: The android context.
+     * @param username              REQUIRED: the username.
+     * @param clientId              REQUIRED: the clientId.
+     * @param secretHash            REQUIRED: the secreth hash.
+     * @param challengeResult       REQUIRED: The response to respond to the authentication challenge.
      */
-    public NewPasswordContinuation (CognitoUser user,
-                                    Context context,
-                                    String username,
-                                    String clientId,
-                                    String secretHash,
-                                    RespondToAuthChallengeResult challengeResult,
-                                    boolean runInBackground,
-                                    AuthenticationHandler callback) {
-        super(user, context, username, clientId, secretHash, challengeResult, runInBackground, callback);
+    public NewPasswordContinuation(CognitoUser user,
+            Context context,
+            String username,
+            String clientId,
+            String secretHash,
+            RespondToAuthChallengeResult challengeResult,
+            boolean runInBackground,
+            AuthenticationHandler callback) {
+        super(user, context, username, clientId, secretHash, challengeResult, runInBackground,
+                callback);
         this.callback = callback;
 
         // Parse required User Attributes and current values of user attributes.
         parseUserAttributes(getParameters().get(CognitoServiceConstants.CHLG_PARAM_USER_ATTRIBUTE));
-        parseRequiredAttributes(getParameters().get(CognitoServiceConstants.CHLG_PARAM_REQUIRED_ATTRIBUTE));
+        parseRequiredAttributes(
+                getParameters().get(CognitoServiceConstants.CHLG_PARAM_REQUIRED_ATTRIBUTE));
     }
 
     /**
@@ -121,11 +130,14 @@ public class NewPasswordContinuation extends ChallengeContinuation {
     /**
      * Calls {@Code continueTask()} of the parent after checking if all the required attributes have been set.
      */
+    @Override
     public void continueTask() {
         if (requiredAttributes != null && requiredAttributes.size() > 1) {
-            for (String requiredAttribute: requiredAttributes) {
-                if (!challengeResponses.containsKey(requiredAttribute)) {
-                    throw new CognitoParameterInvalidException(String.format("Missing required attribute: ", requiredAttribute));
+            for (final String requiredAttribute: requiredAttributes) {
+                final String requiredAttrKey = CognitoServiceConstants.CHLG_PARAM_USER_ATTRIBUTE_PREFIX + requiredAttribute;
+                if (!challengeResponses.containsKey(requiredAttrKey)) {
+                    throw new CognitoParameterInvalidException(
+                            String.format("Missing required attribute: %s", requiredAttribute));
                 }
             }
         }
@@ -147,14 +159,14 @@ public class NewPasswordContinuation extends ChallengeContinuation {
         currentUserAttributes = new HashMap<String, String>();
         if (userAttributesJsonString != null) {
             try {
-                JSONObject userAttributesJson = new JSONObject(userAttributesJsonString);
-                Iterator<?> userAttribute = userAttributesJson.keys();
+                final JSONObject userAttributesJson = new JSONObject(userAttributesJsonString);
+                final Iterator<?> userAttribute = userAttributesJson.keys();
                 while (userAttribute.hasNext()) {
-                    String attributeName = (String) userAttribute.next();
-                    String attributeValue = userAttributesJson.getString(attributeName);
+                    final String attributeName = (String) userAttribute.next();
+                    final String attributeValue = userAttributesJson.getString(attributeName);
                     currentUserAttributes.put(attributeName, attributeValue);
                 }
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 callback.onFailure(e);
             }
         }
@@ -169,11 +181,11 @@ public class NewPasswordContinuation extends ChallengeContinuation {
         requiredAttributes = new ArrayList<String>();
         if (requiredAttributesJsonString != null) {
             try {
-                JSONArray requiredAttributesJson = new JSONArray(requiredAttributesJsonString);
+                final JSONArray requiredAttributesJson = new JSONArray(requiredAttributesJsonString);
                 for (int i = 0; i < requiredAttributesJson.length(); i++) {
                     requiredAttributes.add(requiredAttributesJson.getString(i).split(CognitoServiceConstants.CHLG_PARAM_USER_ATTRIBUTE_PREFIX, 2)[1]);
                 }
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 callback.onFailure(e);
             }
         }

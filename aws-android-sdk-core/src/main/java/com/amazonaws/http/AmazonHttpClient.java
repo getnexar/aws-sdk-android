@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import com.amazonaws.util.TimingInfo;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -55,18 +54,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * The Amazon HTTP Client class.
+ */
 public class AmazonHttpClient {
 
     private static final String HEADER_USER_AGENT = "User-Agent";
     private static final String HEADER_SDK_TRANSACTION_ID = "aws-sdk-invocation-id";
     private static final String HEADER_SDK_RETRY_INFO = "aws-sdk-retry";
 
+    private static final int HTTP_STATUS_OK = 200;
+    private static final int HTTP_STATUS_TEMP_REDIRECT = 307;
+    private static final int HTTP_STATUS_MULTIPLE_CHOICES = 300;
+    private static final int HTTP_STATUS_REQ_TOO_LONG = 413;
+    private static final int HTTP_STATUS_SERVICE_UNAVAILABLE = 503;
+
+    private static final int TIME_MILLISEC = 1000;
+
     /**
      * Logger providing detailed information on requests/responses. Users can
      * enable this logger to get access to AWS request IDs for responses,
      * individual requests and parameters sent to AWS, etc.
      */
-    private static final Log requestLog = LogFactory.getLog("com.amazonaws.request");
+    private static final Log REQUEST_LOG = LogFactory.getLog("com.amazonaws.request");
 
     /**
      * Logger for more detailed debugging information, that might not be as
@@ -184,24 +194,27 @@ public class AmazonHttpClient {
      *            response from the remote server
      * @param executionContext Additional information about the context of this
      *            web service call
+     * @param <T> the response type.
+     * @return the result of the request.
      */
     public <T> Response<T> execute(Request<?> request,
             HttpResponseHandler<AmazonWebServiceResponse<T>> responseHandler,
             HttpResponseHandler<AmazonServiceException> errorResponseHandler,
-            ExecutionContext executionContext) throws AmazonClientException, AmazonServiceException {
-        if (executionContext == null)
+            ExecutionContext executionContext) {
+        if (executionContext == null) {
             throw new AmazonClientException(
                     "Internal SDK Error: No execution context parameter specified.");
-        List<RequestHandler2> requestHandler2s = requestHandler2s(request, executionContext);
+        }
+        final List<RequestHandler2> requestHandler2s = requestHandler2s(request, executionContext);
         final AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         Response<T> response = null;
         try {
             response = executeHelper(request, responseHandler, errorResponseHandler,
                     executionContext);
-            TimingInfo timingInfo = awsRequestMetrics.getTimingInfo().endTiming();
+            final TimingInfo timingInfo = awsRequestMetrics.getTimingInfo().endTiming();
             afterResponse(request, requestHandler2s, response, timingInfo);
             return response;
-        } catch (AmazonClientException e) {
+        } catch (final AmazonClientException e) {
             afterError(request, response, requestHandler2s, e);
             throw e;
         }
@@ -209,7 +222,7 @@ public class AmazonHttpClient {
 
     void afterError(Request<?> request, Response<?> response,
             List<RequestHandler2> requestHandler2s, AmazonClientException e) {
-        for (RequestHandler2 handler2 : requestHandler2s) {
+        for (final RequestHandler2 handler2 : requestHandler2s) {
             handler2.afterError(request, response, e);
         }
     }
@@ -218,26 +231,27 @@ public class AmazonHttpClient {
             List<RequestHandler2> requestHandler2s,
             Response<T> response,
             TimingInfo timingInfo) {
-        for (RequestHandler2 handler2 : requestHandler2s) {
+        for (final RequestHandler2 handler2 : requestHandler2s) {
             handler2.afterResponse(request, response);
         }
     }
 
     List<RequestHandler2> requestHandler2s(Request<?> request,
             ExecutionContext executionContext) {
-        List<RequestHandler2> requestHandler2s = executionContext
+        final List<RequestHandler2> requestHandler2s = executionContext
                 .getRequestHandler2s();
         if (requestHandler2s == null) {
             return Collections.emptyList();
         }
         // Apply any additional service specific request handlers that need
         // to be run
-        for (RequestHandler2 requestHandler2 : requestHandler2s) {
+        for (final RequestHandler2 requestHandler2 : requestHandler2s) {
             // If the request handler is a type of CredentialsRequestHandler,
             // then set the credentials in the request handler.
-            if (requestHandler2 instanceof CredentialsRequestHandler)
+            if (requestHandler2 instanceof CredentialsRequestHandler) {
                 ((CredentialsRequestHandler) requestHandler2)
                         .setCredentials(executionContext.getCredentials());
+            }
             requestHandler2.beforeRequest(request);
         }
         return requestHandler2s;
@@ -251,12 +265,11 @@ public class AmazonHttpClient {
      * @see AmazonHttpClient#execute(Request, HttpResponseHandler,
      *      HttpResponseHandler, ExecutionContext)
      */
+    @SuppressWarnings("checkstyle:methodlength")
     <T> Response<T> executeHelper(Request<?> request,
             HttpResponseHandler<AmazonWebServiceResponse<T>> responseHandler,
             HttpResponseHandler<AmazonServiceException> errorResponseHandler,
-            ExecutionContext executionContext)
-            throws AmazonClientException, AmazonServiceException
-    {
+            ExecutionContext executionContext) {
         /*
          * Depending on which response handler we end up choosing to handle the
          * HTTP response, it might require us to leave the underlying HTTP
@@ -265,7 +278,7 @@ public class AmazonHttpClient {
          * any of the content until after a response is returned to the caller.
          */
         boolean leaveHttpConnectionOpen = false;
-        AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
+        final AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         /*
          * add the service endpoint to the logs. You can infer service name from
          * service endpoint
@@ -284,11 +297,11 @@ public class AmazonHttpClient {
 
         // Make a copy of the original request params and headers so that we can
         // permute it in this loop and start over with the original every time.
-        Map<String, String> originalParameters = new LinkedHashMap<String, String>(
+        final Map<String, String> originalParameters = new LinkedHashMap<String, String>(
                 request.getParameters());
-        Map<String, String> originalHeaders = new HashMap<String, String>(request.getHeaders());
+        final Map<String, String> originalHeaders = new HashMap<String, String>(request.getHeaders());
         // mark input stream if supported
-        InputStream originalContent = request.getContent();
+        final InputStream originalContent = request.getContent();
         if (originalContent != null && originalContent.markSupported()) {
             originalContent.mark(-1);
         }
@@ -306,7 +319,8 @@ public class AmazonHttpClient {
                 request.setHeaders(originalHeaders);
                 request.setContent(originalContent);
             }
-            if (redirectedURI != null) {
+            if (redirectedURI != null && request.getEndpoint() == null
+                    && request.getResourcePath() == null) {
                 request.setEndpoint(URI.create(
                         redirectedURI.getScheme() + "://" + redirectedURI.getAuthority()));
                 request.setResourcePath(redirectedURI.getPath());
@@ -323,7 +337,7 @@ public class AmazonHttpClient {
                     } finally {
                         awsRequestMetrics.endEvent(Field.RetryPauseTime);
                     }
-                    InputStream content = request.getContent();
+                    final InputStream content = request.getContent();
                     if (content != null && content.markSupported()) {
                         content.reset();
                     }
@@ -332,8 +346,9 @@ public class AmazonHttpClient {
                         (requestCount - 1) + "/" + lastBackoffDelay);
 
                 // Sign the request if a signer was provided
-                if (signer == null)
+                if (signer == null) {
                     signer = executionContext.getSignerByURI(request.getEndpoint());
+                }
                 if (signer != null && credentials != null) {
                     awsRequestMetrics.startEvent(Field.RequestSigningTime);
                     try {
@@ -343,8 +358,8 @@ public class AmazonHttpClient {
                     }
                 }
 
-                if (requestLog.isDebugEnabled()) {
-                    requestLog.debug("Sending Request: " + request.toString());
+                if (REQUEST_LOG.isDebugEnabled()) {
+                    REQUEST_LOG.debug("Sending Request: " + request.toString());
                 }
 
                 httpRequest = requestFactory.createHttpRequest(request, config,
@@ -365,7 +380,7 @@ public class AmazonHttpClient {
                      * should treat the service call as successful.
                      */
                     leaveHttpConnectionOpen = responseHandler.needsConnectionLeftOpen();
-                    T response = handleResponse(request, responseHandler,
+                    final T response = handleResponse(request, responseHandler,
                             httpResponse,
                             executionContext);
                     return new Response<T>(response, httpResponse);
@@ -376,16 +391,18 @@ public class AmazonHttpClient {
                      * point the HTTP method to the redirected location, and let
                      * the next retry deliver the request to the right location.
                      */
-                    String redirectedLocation = httpResponse.getHeaders().get("Location");
+                    final String redirectedLocation = httpResponse.getHeaders().get("Location");
                     log.debug("Redirecting to: " + redirectedLocation);
                     // set redirect uri and retry
                     redirectedURI = URI.create(redirectedLocation);
+                    request.setEndpoint(null);
+                    request.setResourcePath(null);
                     awsRequestMetrics.addProperty(Field.StatusCode, httpResponse.getStatusCode());
                     awsRequestMetrics.addProperty(Field.RedirectLocation, redirectedLocation);
                     awsRequestMetrics.addProperty(Field.AWSRequestID, null);
                 } else {
                     leaveHttpConnectionOpen = errorResponseHandler.needsConnectionLeftOpen();
-                    AmazonServiceException ase = handleErrorResponse(request, errorResponseHandler,
+                    final AmazonServiceException ase = handleErrorResponse(request, errorResponseHandler,
                             httpResponse);
                     awsRequestMetrics.addProperty(Field.AWSRequestID, ase.getRequestId());
                     awsRequestMetrics.addProperty(Field.AWSErrorCode, ase.getErrorCode());
@@ -407,12 +424,12 @@ public class AmazonHttpClient {
                      * exception.
                      */
                     if (RetryUtils.isClockSkewError(ase)) {
-                        int timeOffset = parseClockSkewOffset(httpResponse, ase);
+                        final int timeOffset = parseClockSkewOffset(httpResponse, ase);
                         SDKGlobalConfiguration.setGlobalTimeOffset(timeOffset);
                     }
                     resetRequestAfterError(request, ase);
                 }
-            } catch (IOException ioe) {
+            } catch (final IOException ioe) {
                 if (log.isDebugEnabled()) {
                     log.debug("Unable to execute HTTP request: " + ioe.getMessage(), ioe);
                 }
@@ -420,7 +437,7 @@ public class AmazonHttpClient {
                 awsRequestMetrics.addProperty(Field.Exception, ioe);
                 awsRequestMetrics.addProperty(Field.AWSRequestID, null);
 
-                AmazonClientException ace = new AmazonClientException(
+                final AmazonClientException ace = new AmazonClientException(
                         "Unable to execute HTTP request: " + ioe.getMessage(), ioe);
                 if (!shouldRetry(request.getOriginalRequest(),
                         httpRequest.getContent(),
@@ -433,9 +450,9 @@ public class AmazonHttpClient {
                 // Cache the retryable exception
                 retriedException = ace;
                 resetRequestAfterError(request, ioe);
-            } catch (RuntimeException e) {
+            } catch (final RuntimeException e) {
                 throw handleUnexpectedFailure(e, awsRequestMetrics);
-            } catch (Error e) {
+            } catch (final Error e) {
                 throw handleUnexpectedFailure(e, awsRequestMetrics);
             } finally {
                 /*
@@ -450,7 +467,7 @@ public class AmazonHttpClient {
                         if (httpResponse.getRawContent() != null) {
                             httpResponse.getRawContent().close();
                         }
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         log.warn("Cannot close the response content.", e);
                     }
                 }
@@ -478,8 +495,7 @@ public class AmazonHttpClient {
      * @param cause The original error that caused the request to fail.
      * @throws AmazonClientException If the request can't be reset.
      */
-    void resetRequestAfterError(Request<?> request, Exception cause)
-            throws AmazonClientException {
+    void resetRequestAfterError(Request<?> request, Exception cause) {
         if (request.getContent() == null) {
             return; // no reset needed
         }
@@ -489,7 +505,7 @@ public class AmazonHttpClient {
         }
         try {
             request.getContent().reset();
-        } catch (IOException e) {
+        } catch (final IOException e) {
             // This exception comes from being unable to reset the input stream,
             // so throw the original, more meaningful exception
             throw new AmazonClientException(
@@ -504,11 +520,11 @@ public class AmazonHttpClient {
     void setUserAgent(Request<?> request) {
         String userAgent = ClientConfiguration.DEFAULT_USER_AGENT;
         // append request specific user agent marker
-        AmazonWebServiceRequest awsreq = request.getOriginalRequest();
+        final AmazonWebServiceRequest awsreq = request.getOriginalRequest();
         if (awsreq != null) {
-            RequestClientOptions opts = awsreq.getRequestClientOptions();
+            final RequestClientOptions opts = awsreq.getRequestClientOptions();
             if (opts != null) {
-                String userAgentMarker = opts.getClientMarker(Marker.USER_AGENT);
+                final String userAgentMarker = opts.getClientMarker(Marker.USER_AGENT);
                 if (userAgentMarker != null) {
                     userAgent = createUserAgentString(userAgent, userAgentMarker);
                 }
@@ -571,8 +587,9 @@ public class AmazonHttpClient {
         }
 
         // Immediately fails when it has exceeds the max retry count.
-        if (retries >= maxErrorRetry)
+        if (retries >= maxErrorRetry) {
             return false;
+        }
 
         // Never retry on requests containing non-repeatable entity
         if (inputStream != null && !inputStream.markSupported()) {
@@ -590,15 +607,15 @@ public class AmazonHttpClient {
     }
 
     private static boolean isTemporaryRedirect(HttpResponse response) {
-        int statusCode = response.getStatusCode();
-        String location = response.getHeaders().get("Location");
-        return statusCode == 307 &&
+        final int statusCode = response.getStatusCode();
+        final String location = response.getHeaders().get("Location");
+        return statusCode == HTTP_STATUS_TEMP_REDIRECT &&
                 location != null && !location.isEmpty();
     }
 
     private boolean isRequestSuccessful(HttpResponse response) {
-        int statusCode = response.getStatusCode();
-        return statusCode >= 200 && statusCode < 300;
+        final int statusCode = response.getStatusCode();
+        return statusCode >= HTTP_STATUS_OK && statusCode < HTTP_STATUS_MULTIPLE_CHOICES;
     }
 
     /**
@@ -622,10 +639,9 @@ public class AmazonHttpClient {
     <T> T handleResponse(Request<?> request,
             HttpResponseHandler<AmazonWebServiceResponse<T>> responseHandler,
             HttpResponse response,
-            ExecutionContext executionContext) throws IOException
-    {
+            ExecutionContext executionContext) throws IOException {
         try {
-            AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
+            final AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
             AmazonWebServiceResponse<? extends T> awsResponse;
             awsRequestMetrics.startEvent(Field.ResponseProcessingTime);
             try {
@@ -634,25 +650,26 @@ public class AmazonHttpClient {
                 awsRequestMetrics.endEvent(Field.ResponseProcessingTime);
             }
 
-            if (awsResponse == null)
+            if (awsResponse == null) {
                 throw new RuntimeException(
                         "Unable to unmarshall response metadata. Response Code: " +
                                 response.getStatusCode() + ", Response Text: "
                                 + response.getStatusText());
+            }
 
-            if (requestLog.isDebugEnabled()) {
-                requestLog.debug("Received successful response: " + response.getStatusCode()
+            if (REQUEST_LOG.isDebugEnabled()) {
+                REQUEST_LOG.debug("Received successful response: " + response.getStatusCode()
                         + ", AWS Request ID: " + awsResponse.getRequestId());
             }
             awsRequestMetrics.addProperty(Field.AWSRequestID, awsResponse.getRequestId());
 
             return awsResponse.getResult();
-        } catch (CRC32MismatchException e) {
+        } catch (final CRC32MismatchException e) {
             throw e;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw e;
-        } catch (Exception e) {
-            String errorMessage = "Unable to unmarshall response (" + e.getMessage()
+        } catch (final Exception e) {
+            final String errorMessage = "Unable to unmarshall response (" + e.getMessage()
                     + "). Response Code: " +
                     response.getStatusCode() + ", Response Text: " + response.getStatusText();
             throw new AmazonClientException(errorMessage, e);
@@ -675,32 +692,32 @@ public class AmazonHttpClient {
     AmazonServiceException handleErrorResponse(Request<?> request,
             HttpResponseHandler<AmazonServiceException> errorResponseHandler,
             HttpResponse response) throws IOException {
-        int status = response.getStatusCode();
+        final int status = response.getStatusCode();
 
         AmazonServiceException exception = null;
         try {
             exception = errorResponseHandler.handle(response);
-            requestLog.debug("Received error response: " + exception.toString());
-        } catch (Exception e) {
+            REQUEST_LOG.debug("Received error response: " + exception.toString());
+        } catch (final Exception e) {
             // If the errorResponseHandler doesn't work, then check for error
             // responses that don't have any content
-            if (status == 413) {
+            if (status == HTTP_STATUS_REQ_TOO_LONG) {
                 exception = new AmazonServiceException("Request entity too large");
                 exception.setServiceName(request.getServiceName());
-                exception.setStatusCode(413);
+                exception.setStatusCode(HTTP_STATUS_REQ_TOO_LONG);
                 exception.setErrorType(ErrorType.Client);
                 exception.setErrorCode("Request entity too large");
-            } else if (status == 503
+            } else if (status == HTTP_STATUS_SERVICE_UNAVAILABLE
                     && "Service Unavailable".equalsIgnoreCase(response.getStatusText())) {
                 exception = new AmazonServiceException("Service unavailable");
                 exception.setServiceName(request.getServiceName());
-                exception.setStatusCode(503);
+                exception.setStatusCode(HTTP_STATUS_SERVICE_UNAVAILABLE);
                 exception.setErrorType(ErrorType.Service);
                 exception.setErrorCode("Service unavailable");
             } else if (e instanceof IOException) {
                 throw (IOException) e;
             } else {
-                String errorMessage = "Unable to unmarshall error response (" + e.getMessage()
+                final String errorMessage = "Unable to unmarshall error response (" + e.getMessage()
                         + "). Response Code: " +
                         status + ", Response Text: " + response.getStatusText();
                 throw new AmazonClientException(errorMessage, e);
@@ -733,7 +750,7 @@ public class AmazonHttpClient {
                 - 1 // number of attempted requests
                 - 1; // number of attempted retries
 
-        long delay = retryPolicy.getBackoffStrategy().delayBeforeNextRetry(
+        final long delay = retryPolicy.getBackoffStrategy().delayBeforeNextRetry(
                 originalRequest, previousException, retries);
 
         if (log.isDebugEnabled()) {
@@ -744,7 +761,7 @@ public class AmazonHttpClient {
         try {
             Thread.sleep(delay);
             return delay;
-        } catch (InterruptedException e) {
+        } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AmazonClientException(e.getMessage(), e);
         }
@@ -762,22 +779,22 @@ public class AmazonHttpClient {
      * @return Return datetime in string format (yyyyMMdd'T'HHmmss'Z')
      */
     private String getServerDateFromException(String body) {
-        int startPos = body.indexOf("(");
+        final int startPos = body.indexOf("(");
         int endPos = 0;
         if (body.contains(" + 15")) {
             endPos = body.indexOf(" + 15");
         } else {
             endPos = body.indexOf(" - 15");
         }
-        String msg = body.substring(startPos + 1, endPos);
+        final String msg = body.substring(startPos + 1, endPos);
         return msg;
     }
 
     int parseClockSkewOffset(HttpResponse response, AmazonServiceException exception) {
-        Date deviceDate = new Date();
+        final Date deviceDate = new Date();
         Date serverDate = null;
         String serverDateStr = null;
-        String responseDateHeader = response.getHeaders().get("Date");
+        final String responseDateHeader = response.getHeaders().get("Date");
 
         try {
 
@@ -789,15 +806,15 @@ public class AmazonHttpClient {
                 serverDateStr = responseDateHeader;
                 serverDate = DateUtils.parseRFC822Date(serverDateStr);
             }
-        } catch (RuntimeException e) {
+        } catch (final RuntimeException e) {
             log.warn("Unable to parse clock skew offset from response: "
                     + serverDateStr,
                     e);
             return 0;
         }
 
-        long diff = deviceDate.getTime() - serverDate.getTime();
-        return (int) (diff / 1000);
+        final long diff = deviceDate.getTime() - serverDate.getTime();
+        return (int) (diff / TIME_MILLISEC);
     }
 
     @Override
@@ -807,7 +824,7 @@ public class AmazonHttpClient {
     }
 
     /**
-     * Returns the http client specific request metric collector; or null if
+     * @return the http client specific request metric collector; or null if
      * there is none.
      */
     public RequestMetricCollector getRequestMetricCollector() {

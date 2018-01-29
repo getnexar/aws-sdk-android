@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@ package com.amazonaws;
  * @see AmazonServiceException
  */
 public class AmazonClientException extends RuntimeException {
+
+    /** Default serial version UID. */
     private static final long serialVersionUID = 1L;
 
     /**
@@ -44,7 +46,7 @@ public class AmazonClientException extends RuntimeException {
      * @param message An error message describing why this exception was thrown.
      * @param t The underlying cause of this exception.
      */
-    public AmazonClientException(String message, Throwable t) {
+    public AmazonClientException(final String message, final Throwable t) {
         super(message, t);
     }
 
@@ -53,13 +55,23 @@ public class AmazonClientException extends RuntimeException {
      *
      * @param message An error message describing why this exception was thrown.
      */
-    public AmazonClientException(String message) {
+    public AmazonClientException(final String message) {
         super(message);
+    }
+
+    /**
+     * Create an AmazonClientException with an exception cause.
+     *
+     * @param throwable the cause of the exception.
+     */
+    public AmazonClientException(final Throwable throwable) {
+        super(throwable);
     }
 
     /**
      * Returns a hint as to whether it makes sense to retry upon this exception.
      * Default is true, but subclass may override.
+     * @return true if it is retryable.
      */
     public boolean isRetryable() {
         return true;

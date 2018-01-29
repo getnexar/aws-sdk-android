@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.amazonaws.Request;
 import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.internal.SdkDigestInputStream;
 import com.amazonaws.util.Base64;
+import com.amazonaws.util.BinaryUtils;
 import com.amazonaws.util.HttpUtils;
 import com.amazonaws.util.StringInputStream;
 import com.amazonaws.util.StringUtils;
@@ -32,6 +33,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
@@ -50,12 +52,36 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public abstract class AbstractAWSSigner implements Signer {
 
+    /** Empty sha256 hex. */
+    public static final String EMPTY_STRING_SHA256_HEX;
+    private static final ThreadLocal<MessageDigest> SHA256_MESSAGE_DIGEST;
+    private static final int DEFAULT_BUFFER_SIZE = 1024;
+    private static final int BUFFER_SIZE_MULTIPLIER = 5;
+    private static final int TIME_MILLISEC = 1000;
+
+    static {
+        SHA256_MESSAGE_DIGEST = new ThreadLocal<MessageDigest>() {
+            @Override
+            protected MessageDigest initialValue() {
+                try {
+                    return MessageDigest.getInstance("SHA-256");
+                } catch (final NoSuchAlgorithmException e) {
+                    throw new AmazonClientException(
+                            "Unable to get SHA256 Function"
+                                    + e.getMessage(),
+                            e);
+                }
+            }
+        };
+        EMPTY_STRING_SHA256_HEX = BinaryUtils.toHex(doHash(""));
+    }
+
     /**
      * Computes an RFC 2104-compliant HMAC signature and returns the result as a
      * Base64 encoded string.
      */
     protected String signAndBase64Encode(String data, String key,
-            SigningAlgorithm algorithm) throws AmazonClientException {
+            SigningAlgorithm algorithm) {
         return signAndBase64Encode(data.getBytes(UTF8),
                 key, algorithm);
     }
@@ -64,35 +90,39 @@ public abstract class AbstractAWSSigner implements Signer {
      * Computes an RFC 2104-compliant HMAC signature for an array of bytes and
      * returns the result as a Base64 encoded string.
      */
-    protected String signAndBase64Encode(byte[] data, String key, SigningAlgorithm algorithm)
-            throws AmazonClientException {
+    protected String signAndBase64Encode(byte[] data, String key, SigningAlgorithm algorithm) {
         try {
-            byte[] signature = sign(data, key.getBytes(UTF8), algorithm);
+            final byte[] signature = sign(data, key.getBytes(UTF8), algorithm);
             return Base64.encodeAsString(signature);
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to calculate a request signature: "
                     + e.getMessage(), e);
         }
     }
 
-    public byte[] sign(String stringData, byte[] key, SigningAlgorithm algorithm)
-            throws AmazonClientException {
+    /**
+     * Signs using the given signing algorithm.
+     * @param stringData the data.
+     * @param key the key in bytes.
+     * @param algorithm the signing algorithm.
+     * @return signed result in bytes.
+     */
+    public byte[] sign(String stringData, byte[] key, SigningAlgorithm algorithm) {
         try {
-            byte[] data = stringData.getBytes(UTF8);
+            final byte[] data = stringData.getBytes(UTF8);
             return sign(data, key, algorithm);
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to calculate a request signature: "
                     + e.getMessage(), e);
         }
     }
 
-    protected byte[] sign(byte[] data, byte[] key, SigningAlgorithm algorithm)
-            throws AmazonClientException {
+    protected byte[] sign(byte[] data, byte[] key, SigningAlgorithm algorithm) {
         try {
-            Mac mac = Mac.getInstance(algorithm.toString());
+            final Mac mac = Mac.getInstance(algorithm.toString());
             mac.init(new SecretKeySpec(key, algorithm.toString()));
             return mac.doFinal(data);
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to calculate a request signature: "
                     + e.getMessage(), e);
         }
@@ -104,29 +134,36 @@ public abstract class AbstractAWSSigner implements Signer {
      *
      * @param text The string to hash.
      * @return The hashed bytes from the specified string.
-     * @throws AmazonClientException If the hash cannot be computed.
      */
-    public byte[] hash(String text) throws AmazonClientException {
+    public byte[] hash(String text) {
+        return AbstractAWSSigner.doHash(text);
+    }
+
+    private static byte[] doHash(String text) {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            final MessageDigest md = getMessageDigestInstance();
             md.update(text.getBytes(UTF8));
             return md.digest();
-        } catch (Exception e) {
-            throw new AmazonClientException("Unable to compute hash while signing request: "
-                    + e.getMessage(), e);
+        } catch (final Exception e) {
+            throw new AmazonClientException(
+                    "Unable to compute hash while signing request: "
+                            + e.getMessage(),
+                    e);
         }
     }
 
-    protected byte[] hash(InputStream input) throws AmazonClientException {
+    @SuppressWarnings("checkstyle:emptystatement")
+    protected byte[] hash(InputStream input) {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            final MessageDigest md = getMessageDigestInstance();
             @SuppressWarnings("resource")
-            DigestInputStream digestInputStream = new SdkDigestInputStream(input, md);
-            byte[] buffer = new byte[1024];
-            while (digestInputStream.read(buffer) > -1)
+            final DigestInputStream digestInputStream = new SdkDigestInputStream(input, md);
+            final byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
+            while (digestInputStream.read(buffer) > -1) {
                 ;
+            }
             return digestInputStream.getMessageDigest().digest();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to compute hash while signing request: "
                     + e.getMessage(), e);
         }
@@ -139,12 +176,12 @@ public abstract class AbstractAWSSigner implements Signer {
      * @return The hashed bytes from the specified data.
      * @throws AmazonClientException If the hash cannot be computed.
      */
-    public byte[] hash(byte[] data) throws AmazonClientException {
+    public byte[] hash(byte[] data) {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            final MessageDigest md = MessageDigest.getInstance("SHA-256");
             md.update(data);
             return md.digest();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to compute hash while signing request: "
                     + e.getMessage(), e);
         }
@@ -163,20 +200,20 @@ public abstract class AbstractAWSSigner implements Signer {
      */
     protected String getCanonicalizedQueryString(Map<String, String> parameters) {
 
-        SortedMap<String, String> sorted = new TreeMap<String, String>();
+        final SortedMap<String, String> sorted = new TreeMap<String, String>();
 
         Iterator<Map.Entry<String, String>> pairs = parameters.entrySet().iterator();
         while (pairs.hasNext()) {
-            Map.Entry<String, String> pair = pairs.next();
-            String key = pair.getKey();
-            String value = pair.getValue();
+            final Map.Entry<String, String> pair = pairs.next();
+            final String key = pair.getKey();
+            final String value = pair.getValue();
             sorted.put(HttpUtils.urlEncode(key, false), HttpUtils.urlEncode(value, false));
         }
 
-        StringBuilder builder = new StringBuilder();
+        final StringBuilder builder = new StringBuilder();
         pairs = sorted.entrySet().iterator();
         while (pairs.hasNext()) {
-            Map.Entry<String, String> pair = pairs.next();
+            final Map.Entry<String, String> pair = pairs.next();
             builder.append(pair.getKey());
             builder.append("=");
             builder.append(pair.getValue());
@@ -194,10 +231,11 @@ public abstract class AbstractAWSSigner implements Signer {
          * then any request query parameters will be sent as the payload, and
          * not in the actual query string.
          */
-        if (HttpUtils.usePayloadForQueryParameters(request))
+        if (HttpUtils.usePayloadForQueryParameters(request)) {
             return "";
-        else
+        } else {
             return this.getCanonicalizedQueryString(request.getParameters());
+        }
     }
 
     /**
@@ -208,9 +246,10 @@ public abstract class AbstractAWSSigner implements Signer {
      */
     protected byte[] getBinaryRequestPayload(Request<?> request) {
         if (HttpUtils.usePayloadForQueryParameters(request)) {
-            String encodedParameters = HttpUtils.encodeParameters(request);
-            if (encodedParameters == null)
+            final String encodedParameters = HttpUtils.encodeParameters(request);
+            if (encodedParameters == null) {
                 return new byte[0];
+            }
 
             return encodedParameters.getBytes(UTF8);
         }
@@ -249,16 +288,17 @@ public abstract class AbstractAWSSigner implements Signer {
      *         form encoding of query string params.
      */
     protected byte[] getBinaryRequestPayloadWithoutQueryParams(Request<?> request) {
-        InputStream content = getBinaryRequestPayloadStreamWithoutQueryParams(request);
+        final InputStream content = getBinaryRequestPayloadStreamWithoutQueryParams(request);
 
         try {
             content.mark(-1);
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024 * 5];
+            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            final byte[] buffer = new byte[DEFAULT_BUFFER_SIZE * BUFFER_SIZE_MULTIPLIER];
             while (true) {
-                int bytesRead = content.read(buffer);
-                if (bytesRead == -1)
+                final int bytesRead = content.read(buffer);
+                if (bytesRead == -1) {
                     break;
+                }
 
                 byteArrayOutputStream.write(buffer, 0, bytesRead);
             }
@@ -267,7 +307,7 @@ public abstract class AbstractAWSSigner implements Signer {
             content.reset();
 
             return byteArrayOutputStream.toByteArray();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to read request payload to sign request: "
                     + e.getMessage(), e);
         }
@@ -275,9 +315,10 @@ public abstract class AbstractAWSSigner implements Signer {
 
     protected InputStream getBinaryRequestPayloadStream(Request<?> request) {
         if (HttpUtils.usePayloadForQueryParameters(request)) {
-            String encodedParameters = HttpUtils.encodeParameters(request);
-            if (encodedParameters == null)
+            final String encodedParameters = HttpUtils.encodeParameters(request);
+            if (encodedParameters == null) {
                 return new ByteArrayInputStream(new byte[0]);
+            }
 
             return new ByteArrayInputStream(
                     encodedParameters.getBytes(UTF8));
@@ -288,9 +329,10 @@ public abstract class AbstractAWSSigner implements Signer {
 
     protected InputStream getBinaryRequestPayloadStreamWithoutQueryParams(Request<?> request) {
         try {
-            InputStream content = request.getContent();
-            if (content == null)
+            final InputStream content = request.getContent();
+            if (content == null) {
                 return new ByteArrayInputStream(new byte[0]);
+            }
 
             if (content instanceof StringInputStream) {
                 return content;
@@ -301,7 +343,7 @@ public abstract class AbstractAWSSigner implements Signer {
             }
 
             return request.getContent();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new AmazonClientException("Unable to read request payload to sign request: "
                     + e.getMessage(), e);
         }
@@ -315,7 +357,7 @@ public abstract class AbstractAWSSigner implements Signer {
         if (resourcePath == null || resourcePath.length() == 0) {
             return "/";
         } else {
-            String value = urlEncode ? HttpUtils.urlEncode(resourcePath, true) : resourcePath;
+            final String value = urlEncode ? HttpUtils.urlEncode(resourcePath, true) : resourcePath;
             if (value.startsWith("/")) {
                 return value;
             } else {
@@ -363,12 +405,15 @@ public abstract class AbstractAWSSigner implements Signer {
                 token = ((AWSSessionCredentials) credentials).getSessionToken();
             }
         }
-        if (secretKey != null)
+        if (secretKey != null) {
             secretKey = secretKey.trim();
-        if (accessKeyId != null)
+        }
+        if (accessKeyId != null) {
             accessKeyId = accessKeyId.trim();
-        if (token != null)
+        }
+        if (token != null) {
             token = token.trim();
+        }
 
         if (credentials instanceof AWSSessionCredentials) {
             return new BasicSessionCredentials(accessKeyId, secretKey, token);
@@ -391,7 +436,7 @@ public abstract class AbstractAWSSigner implements Signer {
         Date dateValue = new Date();
         if (timeOffset != 0) {
             long epochMillis = dateValue.getTime();
-            epochMillis -= timeOffset * 1000;
+            epochMillis -= timeOffset * TIME_MILLISEC;
             dateValue = new Date(epochMillis);
         }
         return dateValue;
@@ -416,4 +461,14 @@ public abstract class AbstractAWSSigner implements Signer {
     protected abstract void addSessionCredentials(Request<?> request,
             AWSSessionCredentials credentials);
 
+    /**
+     * Returns the re-usable thread local version of MessageDigest.
+     *
+     * @return
+     */
+    private static MessageDigest getMessageDigestInstance() {
+        final MessageDigest messageDigest = SHA256_MESSAGE_DIGEST.get();
+        messageDigest.reset();
+        return messageDigest;
+    }
 }

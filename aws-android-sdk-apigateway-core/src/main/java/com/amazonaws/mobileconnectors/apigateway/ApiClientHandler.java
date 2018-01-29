@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -29,9 +29,12 @@ import com.amazonaws.http.HttpResponse;
 import com.amazonaws.http.UrlHttpClient;
 import com.amazonaws.mobileconnectors.apigateway.annotation.Operation;
 import com.amazonaws.mobileconnectors.apigateway.annotation.Parameter;
+import com.amazonaws.util.DateUtils;
 import com.amazonaws.util.IOUtils;
 import com.amazonaws.util.StringUtils;
+import com.amazonaws.util.json.DateDeserializer;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -43,6 +46,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Map;
 
 /**
@@ -50,7 +54,16 @@ import java.util.Map;
  * response.
  */
 class ApiClientHandler implements InvocationHandler {
-    private static final Gson gson = new Gson();
+
+
+    private static final Gson GSON_WITH_DATE_FORMATTER = new GsonBuilder()
+            .registerTypeAdapter(Date.class, new DateDeserializer(new String[] {
+                DateUtils.ISO8601_DATE_PATTERN, DateUtils.ALTERNATE_ISO8601_DATE_PATTERN,
+                DateUtils.COMPRESSED_DATE_PATTERN, DateUtils.RFC822_DATE_PATTERN
+            })).create();
+
+    private static final int HTTP_RESPONSE_OK = 200;
+    private static final int HTTP_RESPONSE_LAST_SUCCESS_STATUSCODE = 300;
 
     private final String endpoint;
     private final String apiName;
@@ -62,12 +75,13 @@ class ApiClientHandler implements InvocationHandler {
     // 'x-api-key' header.
     private final String apiKey;
 
-    private final HttpClient client;
+    private HttpClient client;
     private final HttpRequestFactory requestFactory;
     private final ClientConfiguration clientConfiguration;
 
     ApiClientHandler(String endpoint, String apiName,
-            Signer signer, AWSCredentialsProvider provider, String apiKey, ClientConfiguration clientConfiguration) {
+            Signer signer, AWSCredentialsProvider provider, String apiKey,
+            ClientConfiguration clientConfiguration) {
         this.endpoint = endpoint;
         this.apiName = apiName;
         this.signer = signer;
@@ -82,16 +96,26 @@ class ApiClientHandler implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args)
             throws Throwable {
-        // the execute method call flow
-        if (isExecuteMethod(method)) {
-            final HttpRequest httpRequest = invokeExecuteMethod(args);
-            final HttpResponse response = client.execute(httpRequest);
-            return new ApiResponse(response);
-        } else {
-            final HttpRequest httpRequest = createHttpRequest(method, args);
-            final HttpResponse response = client.execute(httpRequest);
 
-            return handleResponse(response, method);
+        try {
+            // the execute method call flow
+            if (isExecuteMethod(method)) {
+                final HttpRequest httpRequest = invokeExecuteMethod(args);
+                final HttpResponse response = client.execute(httpRequest);
+
+                return new ApiResponse(response);
+            } else {
+                final HttpRequest httpRequest = createHttpRequest(method, args);
+                final HttpResponse response = client.execute(httpRequest);
+
+                return handleResponse(response, method);
+            }
+
+        } catch (final ApiClientException ace) {
+            throw ace;
+        } catch (final Exception e) {
+            final String msg = e.getMessage() == null ? "" : e.getMessage();
+            throw new ApiClientException(msg, e);
         }
     }
 
@@ -141,7 +165,7 @@ class ApiClientHandler implements InvocationHandler {
                 if (content != null) {
                     throw new IllegalStateException("Can't have more than one Body");
                 }
-                content = args[i] == null ? null : gson.toJson(args[i]);
+                content = args[i] == null ? null : GSON_WITH_DATE_FORMATTER.toJson(args[i]);
                 continue;
             }
 
@@ -188,6 +212,10 @@ class ApiClientHandler implements InvocationHandler {
         final String name = p.name();
         final String location = p.location();
 
+        if (arg == null) {
+            return;
+        }
+
         if ("header".equals(location)) {
             request.addHeader(name, String.valueOf(arg));
         } else if ("path".equals(location)) {
@@ -197,8 +225,7 @@ class ApiClientHandler implements InvocationHandler {
         } else if ("query".equals(location)) {
             if (Map.class.isAssignableFrom(arg.getClass())) {
                 @SuppressWarnings("unchecked")
-                final
-                Map<String, Object> map = (Map<String, Object>) arg;
+                final Map<String, Object> map = (Map<String, Object>) arg;
                 for (final Map.Entry<String, Object> entry : map.entrySet()) {
                     request.addParameter(entry.getKey(), String.valueOf(entry.getValue()));
                 }
@@ -247,12 +274,12 @@ class ApiClientHandler implements InvocationHandler {
         final int code = response.getStatusCode();
         final InputStream content = response.getContent();
         // successful request if code is 2xx
-        if (code >= 200 && code < 300) {
+        if (code >= HTTP_RESPONSE_OK && code < HTTP_RESPONSE_LAST_SUCCESS_STATUSCODE) {
             final Type t = method.getReturnType();
             if (t != void.class && content != null) {
                 final Reader reader = new InputStreamReader(response.getContent(),
                         StringUtils.UTF8);
-                final Object obj = gson.fromJson(reader, t);
+                final Object obj = GSON_WITH_DATE_FORMATTER.fromJson(reader, t);
                 reader.close();
                 return obj;
             } else {
@@ -277,7 +304,7 @@ class ApiClientHandler implements InvocationHandler {
 
     boolean isExecuteMethod(Method method) {
         final Operation op = method.getAnnotation(Operation.class);
-        return op == null && method.getName().equalsIgnoreCase("execute")
+        return op == null && "execute".equalsIgnoreCase(method.getName())
                 && method.getReturnType().isAssignableFrom(ApiResponse.class)
                 && method.getParameterTypes().length == 1
                 && method.getParameterTypes()[0].isAssignableFrom(ApiRequest.class);
@@ -326,5 +353,9 @@ class ApiClientHandler implements InvocationHandler {
             sb.append(object);
         }
         return sb.toString();
+    }
+
+    void setClient(HttpClient client) {
+        this.client = client;
     }
 }

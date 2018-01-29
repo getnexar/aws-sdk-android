@@ -1,4 +1,9 @@
-# AWS SDK for Android [![Build Status](https://travis-ci.org/aws/aws-sdk-android.png?branch=master)](https://travis-ci.org/aws/aws-sdk-android)
+# AWS SDK for Android 
+
+[![Build Status](https://travis-ci.org/aws/aws-sdk-android.png?branch=master)](https://travis-ci.org/aws/aws-sdk-android)
+[![GitHub release](https://img.shields.io/github/release/aws/aws-sdk-android.svg)]()
+[![Maven Central](https://img.shields.io/maven-central/v/com.amazonaws/aws-android-sdk-pom.svg)]()
+[![Twitter Follow](https://img.shields.io/twitter/follow/awsformobile.svg?style=social&label=Follow)]()
 
 The [AWS SDK for Android](http://aws.amazon.com/sdkforandroid) provides a library and documentation for developers to build connected mobile applications using AWS.
 
@@ -24,28 +29,31 @@ This section explains how to understand and work with the various components of 
 
 The AWS SDK for Android supports the following AWS services:
 
-* [Amazon CloudWatch](http://aws.amazon.com/cloudwatch/)
-* [Amazon Cognito](http://aws.amazon.com/cognito/)
-* [Amazon DynamoDB](http://aws.amazon.com/dynamodb/)
-* [Amazon Elastic Compute Cloud (EC2)](http://aws.amazon.com/ec2/)
-* [Amazon Kinesis Firehose](http://aws.amazon.com/kinesis/firehose/)
-* [Amazon Kinesis Streams](http://aws.amazon.com/kinesis/streams/)
-* [Amazon Machine Learning](http://aws.amazon.com/machine-learning/)
-* [Amazon Mobile Analytics](http://aws.amazon.com/mobileanalytics/)
-* [Amazon S3](http://aws.amazon.com/s3/)
-* [Amazon Security Token Service (STS)](http://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html)
-* [Amazon Simple Email Service (SES)](http://aws.amazon.com/ses/)
-* [Amazon Simple Notification Service (SNS)](http://aws.amazon.com/sns/)
-* [Amazon Simple Queue Service (SQS)](http://aws.amazon.com/sqs/)
-* [Amazon SimpleDB](http://aws.amazon.com/simpledb/)
+* [Amazon CloudWatch](https://aws.amazon.com/cloudwatch/)
+* [Amazon Cognito](https://aws.amazon.com/cognito/)
+* [Amazon DynamoDB](https://aws.amazon.com/dynamodb/)
+* [Amazon Elastic Compute Cloud (EC2)](https://aws.amazon.com/ec2/)
+* [Amazon Kinesis Firehose](https://aws.amazon.com/kinesis/firehose/)
+* [Amazon Kinesis Streams](https://aws.amazon.com/kinesis/streams/)
+* [Amazon Lex](https://aws.amazon.com/lex)
+* [Amazon Machine Learning](https://aws.amazon.com/machine-learning/)
+* [Amazon Mobile Analytics](https://aws.amazon.com/mobileanalytics/)
+* [Amazon Polly](https://aws.amazon.com/polly/)
+* [Amazon Pinpoint](https://aws.amazon.com/pinpoint/)
+* [Amazon S3](https://aws.amazon.com/s3/)
+* [Amazon Security Token Service (STS)](https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html)
+* [Amazon Simple Email Service (SES)](https://aws.amazon.com/ses/)
+* [Amazon Simple Notification Service (SNS)](https://aws.amazon.com/sns/)
+* [Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/)
+* [Amazon SimpleDB](https://aws.amazon.com/simpledb/)
 * [Auto Scaling](https://aws.amazon.com/autoscaling/)
 * [AWS Key Management Service (KMS)](https://aws.amazon.com/kms/)
-* [AWS Lambda](http://aws.amazon.com/lambda/)
-* [Elastic Load Balancing](http://aws.amazon.com/elasticloadbalancing/)
+* [AWS Lambda](https://aws.amazon.com/lambda/)
+* [Elastic Load Balancing](https://aws.amazon.com/elasticloadbalancing/)
 
 
 
-###A Quick Code Example
+### A Quick Code Example
 
 **Uploading a File to Amazon S3, and then downloading it using Async Task**
 
@@ -56,35 +64,35 @@ private class S3Example extends AsyncTask<Void,Void,Void>{
         @Override
         protected Void doInBackground(Void... params) {
         
-        	// Initialize the Amazon Cognito credentials provider
-        	CognitoCachingCredentialsProvider credentialsProvider = new CognitoCachingCredentialsProvider(
+            // Initialize the Amazon Cognito credentials provider
+            CognitoCachingCredentialsProvider credentialsProvider = new CognitoCachingCredentialsProvider(
                 MY-ACTIVITY.getApplicationContext(), // Application Context
                 "MY-IDENTITY-POOL-ID", // Identity Pool ID
                 Regions.SELECT_YOUR_REGION // Region enum
             );
 
-        	AmazonS3Client s3Client = new AmazonS3Client(credentialsProvider);
-       	 	File fileToUpload = YOUR_FILE;
-        	//(Replace "MY-BUCKET" with your S3 bucket name, and "MY-OBJECT-KEY" with whatever you would 			like to name the file in S3)
-        	PutObjectRequest putRequest = new PutObjectRequest("MY-BUCKET", "MY-OBJECT-KEY",
+            AmazonS3Client s3Client = new AmazonS3Client(credentialsProvider);
+            File fileToUpload = YOUR_FILE;
+            //(Replace "MY-BUCKET" with your S3 bucket name, and "MY-OBJECT-KEY" with whatever you would like to name the file in S3)
+            PutObjectRequest putRequest = new PutObjectRequest("MY-BUCKET", "MY-OBJECT-KEY",
                         fileToUpload);
-        	PutObjectResult putResponse = s3Client.putObject(putRequest);
+            PutObjectResult putResponse = s3Client.putObject(putRequest);
 
-        	GetObjectRequest getRequest = new GetObjectRequest("MY-BUCKET", "MY-OBJECT-KEY");
-        	S3Object getResponse = s3Client.getObject(getRequest);
-        	InputStream myObjectBytes = getResponse.getObjectContent();
+            GetObjectRequest getRequest = new GetObjectRequest("MY-BUCKET", "MY-OBJECT-KEY");
+            S3Object getResponse = s3Client.getObject(getRequest);
+            InputStream myObjectBytes = getResponse.getObjectContent();
 
-        	// Do what you want with the object
-        	
-			myObjectBytes.close();
+            // Do what you want with the object
+            
+            myObjectBytes.close();
 
-        	return null;
+            return null;
         }
 }
 
 ```
 
-###SDK Fundamentals
+### SDK Fundamentals
 There are only a few fundamentals that are helpful to know when developing against the AWS SDK for Android.
 
 * Never embed credentrials in an Android application.  It is trivially easy to decompile applications and steal embedded credentials.  Always use temporarily vended credentials from services such as [Amazon Cognito Identity](http://docs.aws.amazon.com/mobile/sdkforandroid/developerguide/cognito-auth.html).
@@ -162,17 +170,17 @@ Follow these step-by-step instructions to get up and running with the SDK.  Plea
 ### Sign up for AWS
 Before you begin, you need to sign up for an AWS account [here](http://aws.amazon.com/), click 'Sign In to the Console', and select new user.
 
-###Create an Amazon Cognito Identity pool 
+### Create an Amazon Cognito Identity pool 
 Amazon Cognito Identity allows you to authenticate users to access your AWS resources without having to place your credentials within the applicaiton itself (which is *very* insecure).
 
 To create a Identity Pool
 
-1.	Log into the [Cognito Console](https://console.aws.amazon.com/cognito/home) and click the Get Started button (or the New Identity Pool button if your account already has an identity pool).
-2.	Give your Identity Pool a unique name and either enable access to unauthenticated identities or follow the guides presented in the console to setup an authentication provider (Such as Amazon, Facebook, Google, Twitter, or be your own authentication provider).  Then click create pool.
-3.	You will need to create a role associated with your Identity Pool.  This role specifies the actions that users in the identity pool are allowed to make.  By default the console provides you with a role that allows the synchronization of user data from Cognito Sync and recording user events using Amazon Mobile Analytics.  For some example ways to allow other services, or to revoke the permission for these default services see the [Getting Started Guide](http://docs.aws.amazon.com/mobile/sdkforandroid/developerguide/getting-started-android.html) and navigate to the service you are interested in to see an example of how to create an appropriate role.
-4.	The Cognito console will then present you with a code snippet for getting AWS Credentials to your application.  Keep this open as you may find it useful once you are ready to start coding with the SDK.
+1.  Log into the [Cognito Console](https://console.aws.amazon.com/cognito/home) and click the Get Started button (or the New Identity Pool button if your account already has an identity pool).
+2.  Give your Identity Pool a unique name and either enable access to unauthenticated identities or follow the guides presented in the console to setup an authentication provider (Such as Amazon, Facebook, Google, Twitter, or be your own authentication provider).  Then click create pool.
+3.  You will need to create a role associated with your Identity Pool.  This role specifies the actions that users in the identity pool are allowed to make.  By default the console provides you with a role that allows the synchronization of user data from Cognito Sync and recording user events using Amazon Mobile Analytics.  For some example ways to allow other services, or to revoke the permission for these default services see the [Getting Started Guide](http://docs.aws.amazon.com/mobile/sdkforandroid/developerguide/getting-started-android.html) and navigate to the service you are interested in to see an example of how to create an appropriate role.
+4.  The Cognito console will then present you with a code snippet for getting AWS Credentials to your application.  Keep this open as you may find it useful once you are ready to start coding with the SDK.
 
-###Depend on the AWS SDK for Android in your application
+### Depend on the AWS SDK for Android in your application
 
 The following 3 sections describe how you can depend on the SDK in your application using Gradle with Android Studio, Maven, or by downloading the Jar files from our website.  If you use Maven or Gradle you can automatically get new versions of the SDK when they are released.
 
@@ -199,14 +207,15 @@ Note: Cognito Identity authentication abilities are included in the aws-android-
 * cloudwatch (Amazon CloudWatch),
 * autoscaling (Auto Scaling),
 * ec2 (Amazon EC2),
-* sdb (Amazon Simple DB)
+* sdb (Amazon Simple DB),
+* polly (Amazon Polly)
 
 #### Using Maven 
 
 The AWS Mobile SDK for Android (since version 2.1.3) supports Apache Maven. A Maven project contains a pom.xml file where you can specify the Amazon Web Services that you want to use in your app. Maven then includes the services in your project, so that you don't have to download the entire AWS Mobile SDK and manually include JAR files. If you're new to Maven and you'd like to learn more about it, see the [Maven documentation](http://maven.apache.org/what-is-maven.html).
 
 
-Here's an example pom.xm showing how you can add Amazon Cognito Identity, Amazon S3, and Amazon Mobile Analytics to your project:
+Here's an example pom.xm showing how you can add Amazon Cognito Identity, Amazon S3, and Amazon Pinpoint to your project:
 
 
 ```
@@ -223,7 +232,7 @@ Here's an example pom.xm showing how you can add Amazon Cognito Identity, Amazon
     </dependency>
     <dependency>
         <groupid>com.amazonaws</groupid>
-        <artifactid>aws-android-sdk-mobileanalytics</artifactid>
+        <artifactid>aws-android-sdk-pinpoint</artifactid>
         <version>[2.2,3.0)</version>
     </dependency>
 </dependencies>

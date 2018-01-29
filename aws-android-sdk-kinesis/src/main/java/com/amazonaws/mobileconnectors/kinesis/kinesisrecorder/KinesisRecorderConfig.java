@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -19,16 +19,18 @@ import com.amazonaws.ClientConfiguration;
 
 /**
  * Allows configuration of certain KinesisRecorder parameters, such as
- * maxStoargeSize
+ * maxStoargeSize.
  */
 public class KinesisRecorderConfig {
 
-    private long maxStorageSize = 1024 * 1024 * 5L;
-    private ClientConfiguration clientConfiguration;
+    private static final long DEFAUT_MAX_STORAGE_SIZE = 1024 * 1024 * 5L;
+    private long maxStorageSize = DEFAUT_MAX_STORAGE_SIZE;
+    private final ClientConfiguration clientConfiguration;
+    private String partitionKey;
 
     /**
      * Construct an instance of KinesisRecorderConfig which has default values
-     * of maxStorageSize = 5MiB; and a default ClientConfiguration
+     * of maxStorageSize = 5MiB; and a default ClientConfiguration.
      */
     public KinesisRecorderConfig() {
         this(new ClientConfiguration());
@@ -36,7 +38,7 @@ public class KinesisRecorderConfig {
 
     /**
      * Construct an instance of KinesisRecorderConfig which has default values
-     * of maxStorageSize = 5MiB; and the specified ClientConfiguration
+     * of maxStorageSize = 5MiB; and the specified ClientConfiguration.
      *
      * @param clientConfiguration The client configuration used when making
      *            requests to Amazon Kinesis
@@ -50,24 +52,36 @@ public class KinesisRecorderConfig {
     }
 
     /**
-     * Creates a copy of the passed in KinesisRecorderConfig
+     * Creates a copy of the passed in KinesisRecorderConfig.
      *
      * @param other the KinesisRecorderConfig to copy.
      */
     public KinesisRecorderConfig(KinesisRecorderConfig other) {
         this.maxStorageSize = other.getMaxStorageSize();
         this.clientConfiguration = new ClientConfiguration(other.getClientConfiguration());
+        this.partitionKey = other.partitionKey;
+    }
+
+    /**
+     * Optionally set partition key.
+     *
+     * @param partKey the partition key.
+     * @return This class for chaining
+     */
+    public KinesisRecorderConfig withPartitionKey(String partKey) {
+        this.partitionKey = partKey;
+        return this;
     }
 
     /**
      * Sets the max storage in bytes that KinesisRecorder is allowed to use.
-     * Requests saved that exceed the max stoarge limit will be dropped.
+     * Requests saved that exceed the max storage limit will be dropped.
      *
-     * @param maxStorageSize
+     * @param maxStorage the maximum storage.
      * @return This class for chaining
      */
-    public KinesisRecorderConfig withMaxStorageSize(long maxStorageSize) {
-        this.maxStorageSize = maxStorageSize;
+    public KinesisRecorderConfig withMaxStorageSize(long maxStorage) {
+        this.maxStorageSize = maxStorage;
         return this;
     }
 
@@ -81,11 +95,20 @@ public class KinesisRecorderConfig {
 
     /**
      * Returns the client configuration the Kinesis Recorder will use when
-     * making requests to Amazon Kinesis
+     * making requests to Amazon Kinesis.
      *
      * @return The client configuration
      */
     public ClientConfiguration getClientConfiguration() {
         return clientConfiguration;
+    }
+
+    /**
+     * Returns the partition key.
+     *
+     * @return the partition key.
+     */
+    public String getPartitionKey() {
+        return partitionKey;
     }
 }

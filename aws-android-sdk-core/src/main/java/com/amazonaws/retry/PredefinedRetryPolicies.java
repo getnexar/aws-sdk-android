@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -31,6 +31,14 @@ import java.util.Random;
  * policies used by SDK.
  */
 public class PredefinedRetryPolicies {
+
+    /** No retry policy **/
+    public static final RetryPolicy NO_RETRY_POLICY = new RetryPolicy(
+            RetryPolicy.RetryCondition.NO_RETRY_CONDITION,
+            RetryPolicy.BackoffStrategy.NO_DELAY,
+            0,      // maxErrorRetry
+            false); // honorMaxErrorRetryInClientConfig
+
 
     /* SDK default */
     /** Base sleep time (milliseconds) for throttling exceptions. **/
@@ -82,7 +90,7 @@ public class PredefinedRetryPolicies {
     }
 
     /**
-     * Returns the SDK default retry policy. This policy will honor the
+     * @return the SDK default retry policy. This policy will honor the
      * maxErrorRetry set in ClientConfiguration.
      *
      * @see ClientConfiguration#setMaxErrorRetry(int)
@@ -95,7 +103,7 @@ public class PredefinedRetryPolicies {
     }
 
     /**
-     * Returns the default retry policy for DynamoDB client. This policy will
+     * @return the default retry policy for DynamoDB client. This policy will
      * honor the maxErrorRetry set in ClientConfiguration.
      *
      * @see ClientConfiguration#setMaxErrorRetry(int)
@@ -108,7 +116,8 @@ public class PredefinedRetryPolicies {
     }
 
     /**
-     * Returns the SDK default retry policy with the specified max retry count.
+     * @param maxErrorRetry the max error retry count.
+     * @return the SDK default retry policy with the specified max retry count.
      */
     public static RetryPolicy getDefaultRetryPolicyWithCustomMaxRetries(int maxErrorRetry) {
         return new RetryPolicy(DEFAULT_RETRY_CONDITION,
@@ -118,7 +127,8 @@ public class PredefinedRetryPolicies {
     }
 
     /**
-     * Returns the default retry policy for DynamoDB client with the specified
+     * @param maxErrorRetry the max error retry count.
+     * @return the default retry policy for DynamoDB client with the specified
      * max retry count.
      */
     public static RetryPolicy getDynamoDBDefaultRetryPolicyWithCustomMaxRetries(int maxErrorRetry) {
@@ -194,7 +204,7 @@ public class PredefinedRetryPolicies {
     }
 
     /** A private class that implements the default back-off strategy. **/
-    private static class SDKDefaultBackoffStrategy implements RetryPolicy.BackoffStrategy {
+    private static final class SDKDefaultBackoffStrategy implements RetryPolicy.BackoffStrategy {
 
         /** For generating a random scale factor **/
         private final Random random = new Random();

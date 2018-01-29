@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Portions copyright 2006-2009 James Murty. Please see LICENSE.txt
  * for applicable license terms and NOTICE.txt for applicable notices.
@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Utilities for parsing and formatting dates.
@@ -52,7 +53,7 @@ public class DateUtils {
     /**
      * A map to cache date pattern string to SimpleDateFormat object
      */
-    private static final Map<String, ThreadLocal<SimpleDateFormat>> sdfMap = new HashMap<String, ThreadLocal<SimpleDateFormat>>();
+    private static final Map<String, ThreadLocal<SimpleDateFormat>> SDF_MAP = new HashMap<String, ThreadLocal<SimpleDateFormat>>();
 
     /**
      * A helper function to retrieve a SimpleDateFormat object for the given
@@ -62,21 +63,21 @@ public class DateUtils {
      * @return SimpleDateFormat object
      */
     private static ThreadLocal<SimpleDateFormat> getSimpleDateFormat(final String pattern) {
-        ThreadLocal<SimpleDateFormat> sdf = sdfMap.get(pattern);
+        ThreadLocal<SimpleDateFormat> sdf = SDF_MAP.get(pattern);
         if (sdf == null) {
-            synchronized (sdfMap) {
-                sdf = sdfMap.get(pattern);
+            synchronized (SDF_MAP) {
+                sdf = SDF_MAP.get(pattern);
                 if (sdf == null) {
                     sdf = new ThreadLocal<SimpleDateFormat>() {
                         @Override
                         protected SimpleDateFormat initialValue() {
-                            SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+                            final SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
                             sdf.setTimeZone(GMT_TIMEZONE);
                             sdf.setLenient(false);
                             return sdf;
                         }
                     };
-                    sdfMap.put(pattern, sdf);
+                    SDF_MAP.put(pattern, sdf);
                 }
             }
         }
@@ -94,7 +95,7 @@ public class DateUtils {
     public static Date parse(String pattern, String dateString) {
         try {
             return getSimpleDateFormat(pattern).get().parse(dateString);
-        } catch (ParseException pe) {
+        } catch (final ParseException pe) {
             throw new IllegalArgumentException(pe);
         }
     }
@@ -120,7 +121,7 @@ public class DateUtils {
     public static Date parseISO8601Date(String dateString) {
         try {
             return parse(ISO8601_DATE_PATTERN, dateString);
-        } catch (IllegalArgumentException e) {
+        } catch (final IllegalArgumentException e) {
             // If the first ISO 8601 parser didn't work, try the alternate
             // version which doesn't include fractional seconds
             return parse(ALTERNATE_ISO8601_DATE_PATTERN, dateString);
@@ -168,4 +169,25 @@ public class DateUtils {
     public static Date parseCompressedISO8601Date(String dateString) {
         return parse(COMPRESSED_DATE_PATTERN, dateString);
     }
+
+    /**
+     * Clone date.
+     *
+     * @param date the date to clone.
+     * @return the cloned Date.
+     */
+    public static Date cloneDate(Date date) {
+        return date == null ? null : new Date(date.getTime());
+    }
+
+    /**
+     * @return the number of days since epoch with respect to the given number
+     * of milliseconds since epoch.
+     *
+     * @param milliSinceEpoch milliseconds since epoch.
+     */
+    public static long numberOfDaysSinceEpoch(long milliSinceEpoch) {
+        return TimeUnit.MILLISECONDS.toDays(milliSinceEpoch);
+    }
+
 }

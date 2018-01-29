@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2015-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@ package com.amazonaws.mobileconnectors.s3.transferutility;
 
 import com.amazonaws.services.s3.AmazonS3;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A holder of S3 clients for {@link TransferUtility} to pass a reference of
@@ -28,7 +28,7 @@ import java.util.Map;
  */
 class S3ClientReference {
 
-    private static Map<String, AmazonS3> map = new HashMap<String, AmazonS3>();
+    private static Map<String, AmazonS3> map = new ConcurrentHashMap<String, AmazonS3>();
 
     public static void put(String key, AmazonS3 s3) {
         map.put(key, s3);

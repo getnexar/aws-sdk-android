@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -303,6 +303,7 @@ public class AmazonCognitoIdentityProviderClient extends AmazonWebServiceClient 
 
         // calling this.setEndPoint(...) will also modify the signer accordingly
         this.setEndpoint("cognito-idp.us-east-1.amazonaws.com");
+        this.endpointPrefix = "cognito-idp";
 
         HandlerChainFactory chainFactory = new HandlerChainFactory();
         requestHandler2s.addAll(chainFactory.newRequestHandlerChain(
