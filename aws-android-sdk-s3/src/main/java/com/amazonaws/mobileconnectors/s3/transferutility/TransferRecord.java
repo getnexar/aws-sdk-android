@@ -38,7 +38,7 @@ import java.util.concurrent.TimeoutException;
  * start/stop the a thread for the transfer task.
  */
 @SuppressWarnings("checkstyle:visibilitymodifier")
-class TransferRecord {
+public class TransferRecord {
     private static final Log LOGGER = LogFactory.getLog(TransferRecord.class);
 
     public int id;
