@@ -143,9 +143,16 @@ public class TransferService extends Service {
     /**
      * A Broadcast receiver to receive network connection change events.
      */
-    static class NetworkInfoReceiver extends BroadcastReceiver {
-        private final Handler handler;
-        private final ConnectivityManager connManager;
+    public static class NetworkInfoReceiver extends BroadcastReceiver {
+        public static NetworkInfoReceiverFactory factory = new NetworkInfoReceiverFactory() {
+            @Override
+            public NetworkInfoReceiver getNetworkReceiver(Context context, Handler updateHandler) {
+                return new NetworkInfoReceiver(context, updateHandler);
+            }
+        };
+
+        protected final Handler handler;
+        protected final ConnectivityManager connManager;
 
         /**
          * Constructs a NetworkInfoReceiver.
@@ -163,8 +170,16 @@ public class TransferService extends Service {
             if (ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction())) {
                 final boolean networkConnected = isNetworkConnected();
                 LOGGER.debug("Network connected: " + networkConnected);
-                handler.sendEmptyMessage(networkConnected ? MSG_CHECK : MSG_DISCONNECT);
+                if (networkConnected) {
+                    handler.sendMessage(handler.obtainMessage(MSG_CHECK, shouldScan()));
+                } else {
+                    handler.sendEmptyMessage(MSG_DISCONNECT);
+                }
             }
+        }
+
+        protected boolean shouldScan() {
+            return false;
         }
 
         /**
@@ -172,10 +187,18 @@ public class TransferService extends Service {
          *
          * @return true if network is connected, false otherwise.
          */
-        boolean isNetworkConnected() {
+        protected boolean isNetworkConnected() {
             final NetworkInfo info = connManager.getActiveNetworkInfo();
             return info != null && info.isConnected();
         }
+
+        protected boolean isNetworkAvailableForTransfer(TransferRecord transfer) {
+            return isNetworkConnected();
+        }
+    }
+
+    public static interface NetworkInfoReceiverFactory {
+        public NetworkInfoReceiver getNetworkReceiver(Context context, Handler updateHandler);
     }
 
     @Override
@@ -233,6 +256,10 @@ public class TransferService extends Service {
         @Override
         public void handleMessage(Message msg) {
             if (msg.what == MSG_CHECK) {
+                boolean forceShouldScan = (Boolean)msg.obj;
+                if (forceShouldScan) {
+                    shouldScan = true;
+                }
                 // remove messages of the same type
                 updateHandler.removeMessages(MSG_CHECK);
                 checkTransfers();
@@ -262,7 +289,7 @@ public class TransferService extends Service {
         if (isActive()) {
             lastActiveTime = System.currentTimeMillis();
             // check after one minute
-            updateHandler.sendEmptyMessageDelayed(MSG_CHECK, MINUTE_IN_MILLIS);
+            updateHandler.sendMessageDelayed(updateHandler.obtainMessage(MSG_CHECK, false), MINUTE_IN_MILLIS);
         } else {
             /*
              * Stop the service when it's been idled for more than a minute.
@@ -441,7 +468,8 @@ public class TransferService extends Service {
      */
     void setHandlerLooper(Looper looper) {
         updateHandler = new UpdateHandler(looper);
-        networkInfoReceiver = new NetworkInfoReceiver(getApplicationContext(), updateHandler);
+        networkInfoReceiver = NetworkInfoReceiver.factory.getNetworkReceiver(getApplicationContext(), updateHandler);
+        LOGGER.info("Using NetworkInfoReceiver of type: " + this.networkInfoReceiver.getClass().getSimpleName());
     }
 
     @Override
