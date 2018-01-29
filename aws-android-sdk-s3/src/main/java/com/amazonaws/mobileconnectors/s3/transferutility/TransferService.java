@@ -29,6 +29,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+
 import com.amazonaws.services.s3.AmazonS3;
 
 import org.apache.commons.logging.Log;
