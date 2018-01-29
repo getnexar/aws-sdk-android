@@ -29,7 +29,6 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
-import android.util.Log;
 import com.amazonaws.services.s3.AmazonS3;
 
 import org.apache.commons.logging.Log;
@@ -465,7 +464,7 @@ public class TransferService extends Service {
     void setHandlerLooper(Looper looper) {
         updateHandler = new UpdateHandler(looper);
         networkInfoReceiver = NetworkInfoReceiver.factory.getNetworkReceiver(getApplicationContext(), updateHandler);
-        Log.i(TAG, "Using NetworkInfoReceiver of type: " + this.networkInfoReceiver.getClass().getSimpleName());
+        LOGGER.info("Using NetworkInfoReceiver of type: " + this.networkInfoReceiver.getClass().getSimpleName());
     }
 
     @Override
