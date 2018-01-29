@@ -170,7 +170,11 @@ public class TransferService extends Service {
             if (ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction())) {
                 final boolean networkConnected = isNetworkConnected();
                 LOGGER.debug("Network connected: " + networkConnected);
-                handler.sendEmptyMessage(networkConnected ? MSG_CHECK : MSG_DISCONNECT);
+                if (networkConnected) {
+                    handler.sendMessage(handler.obtainMessage(MSG_CHECK, shouldScan()));
+                } else {
+                    handler.sendEmptyMessage(MSG_DISCONNECT);
+                }
             }
         }
 
