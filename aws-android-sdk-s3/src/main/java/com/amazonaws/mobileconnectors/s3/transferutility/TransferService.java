@@ -492,10 +492,14 @@ public class TransferService extends Service {
                 }
                 transferIds.add(id);
             }
+        } catch (Exception exception) {
+            LOGGER.error("Error in quering transfers" + exception.getMessage());
         } finally {
             if (c != null) {
                 LOGGER.debug("Closing the cursor for loadAndResumeTransfersFromDB");
-                c.close();
+                try {
+                    c.close();
+                } catch(Exception e) { }
             }
         }
 

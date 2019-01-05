@@ -27,6 +27,7 @@ import org.apache.commons.logging.LogFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,8 +81,8 @@ class TransferStatusUpdater {
     TransferStatusUpdater(TransferDBUtil dbUtil) {
         this.dbUtil = dbUtil;
         mainHandler = new Handler(Looper.getMainLooper());
-        transfers = new HashMap<Integer, TransferRecord>();
-        lastUpdateTime = new HashMap<Integer, Long>();
+        transfers = new ConcurrentHashMap<Integer, TransferRecord>();
+        lastUpdateTime = new ConcurrentHashMap<Integer, Long>();
     }
 
     /**
