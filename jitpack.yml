@@ -2,6 +2,7 @@ jdk:
   - oraclejdk8
 before_install:
    - ./prepareEnvironment.shi
+   - $ANDROID_HOME/tools/android update sdk --no-ui --obsolete --force
    - export ANDROID_21=$ANDROID_HOME/platforms/android-21/android.jar
    - sed -i "s,$LINUX_21,$ANDROID_21," aws-android-sdk-kinesisvideo/pom.xml
    - sed -i "s,$LINUX_21,$ANDROID_21," aws-android-sdk-pinpoint/pom.xml
