@@ -396,13 +396,17 @@ public class TransferService extends Service {
                  * only add transfer when network is available or else relies on
                  * the network change listener to scan the database
                  */
-                final TransferRecord transfer = dbUtil.getTransferById(id);
-                if (transfer != null) {
-                    updater.addTransfer(transfer);
-                    transfer.start(s3, dbUtil, updater, networkInfoReceiver);
-                } else {
-                    LOGGER.error("Can't find transfer: " + id);
-                }
+		try {
+                    final TransferRecord transfer = dbUtil.getTransferById(id);
+                    if (transfer != null) {
+                        updater.addTransfer(transfer);
+                        transfer.start(s3, dbUtil, updater, networkInfoReceiver);
+                    } else {
+                        LOGGER.error("Can't find transfer: " + id);
+                    }
+		} catch (Exception e) {
+                    LOGGER.error("Error getting transfer with id " + id + ": " + e.getMessage());
+		}
             }
         } else if (INTENT_ACTION_TRANSFER_PAUSE.equals(action)) {
             TransferRecord transfer = updater.getTransfer(id);
